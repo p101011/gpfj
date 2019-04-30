@@ -20,7 +20,3 @@ class Brain:
         # Find a move given the current board situation
         # Returns (oldPosition, newPosition)
         pass
-
-    def observe(self, message):
-        # Process messages describing enemy moves and other events. Currently unused.
-        pass

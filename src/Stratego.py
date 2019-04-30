@@ -58,7 +58,7 @@ class Application:
     
         self.root = root
         self.blueBrain = eval(brain)
-        self.redBrain = 0
+        self.redBrain = eval(brain)
         self.blueBrainName = brain
         self.difficulty = difficulty
         self.diagonal = (diagonal == "Yes")
@@ -115,6 +115,7 @@ class Application:
         Button(toolbar, text="Save", width=6, command=self.saveGame).pack(side=LEFT, padx=2, pady=2)
         Button(toolbar, text="Settings", width=6, command=self.settings).pack(side=LEFT, padx=2, pady=2)
         Button(toolbar, text="Stats", width=6, command=self.showStats).pack(side=LEFT, padx=2, pady=2)
+        # Button(toolbar, text="Start Game", width=6, command=self.runGame()).pack(side=LEFT, padx=2, pady=2)
         toolbar.pack(side=TOP, fill=X)
 
         # Create status bar
@@ -173,9 +174,11 @@ class Application:
         if self.started and (not self.won) and tkMessageBox.askyesno("Confirm new game",
             "If you start a new game, your current game will be lost. Are you sure?"):
                 self.newGame()
+                self.runGame()
 
         if self.won or not self.started:
             self.newGame()
+            self.runGame()
 
     def newGame(self, event=None):
         """Reset a bunch of variables in order to start a new game"""
@@ -206,10 +209,19 @@ class Application:
             self.started = True
         else:
             self.unitsPlaced = 0
+        #
+        # self.drawSidePanels()
+        # self.drawMap()
+        # self.setStatusBar("Place your army, or press 'p' for random placement")
 
-        self.drawSidePanels()
-        self.drawMap()
-        self.setStatusBar("Place your army, or press 'p' for random placement")
+        # self.runGame()
+
+    def runGame(self, event=None):
+        while self.brains[self.turn] and not self.won and True:  # computer player?
+            print "Starting Game"
+            self.computerTurn()
+            self.turn = self.otherPlayer(self.turn)
+            self.turnNr += 1
 
     def loadGame(self, event=None):
         """Open a load dialog, and then load the selected save file and continue playing that game"""
@@ -550,6 +562,7 @@ class Application:
     def drawMap(self):
         """Draw the tiles and units on the map."""
         # TODO: prettier, irregular coast
+        print "Drawing map"
         self.map.delete(ALL)
         self.map.create_image(0, 0, image=self.grassImage, anchor=NW)
 
@@ -574,6 +587,7 @@ class Application:
             if unit.alive:
                 (x, y) = unit.getPosition()
                 self.drawUnit(self.map, unit, x, y)
+        print "Done drawing map"
 
     def drawTile(self, x, y, tileColor):
         """Fill a tile with its background color - Currently unused"""
@@ -829,61 +843,59 @@ class Application:
         if color == "Red": return self.blueArmy
         return self.redArmy
 
+    def computerTurn(self):
+        (oldlocation, move) = self.brains[self.turn].findMove()
+
+        # check if the opponent can move
+        if move == None:
+            self.victory(self.otherPlayer(self.turn), True)
+            return
+
+        unit = self.getUnit(oldlocation[0], oldlocation[1])
+        unit.hasMoved = True
+
+        # Do move animation
+        stepSize = self.tilePix / MOVE_ANIM_STEPS
+        dx = move[0] - oldlocation[0]
+        dy = move[1] - oldlocation[1]
+
+        if self.animationsOn.get():
+            for _step in range(MOVE_ANIM_STEPS):
+                self.root.after(MOVE_ANIM_FRAMERATE,
+                                self.map.move("u" + str(id(unit)), stepSize * dx, stepSize * dy))
+                self.root.update_idletasks()
+
+        self.drawMoveArrow(oldlocation, move)
+        enemy = self.getUnit(move[0], move[1])
+        if enemy:
+            self.attack(unit, enemy)
+        else:
+            unit.setPosition(move[0], move[1])
+
+        # check if player can move
+        tempBrain = randomBrain.Brain(self, self.redArmy, self.boardWidth)
+        playerMove = tempBrain.findMove()
+        if playerMove[0] == None:
+            self.victory(self.turn, True)
+            return
+
+        if self.difficulty == "Easy":
+            for unit in self.redArmy.army:
+                if unit.isKnown and random() <= FORGETCHANCEEASY:
+                    unit.isKnown = False
+
+        self.setStatusBar("%s moves unit at (%s,%s) to (%s,%s)" % (self.turn,
+                                                                   oldlocation[0], oldlocation[1],
+                                                                   move[0], move[1]))
+        self.drawMap()
+        if not enemy:
+            self.drawMoveArrow(oldlocation, move)
+        self.drawSidePanels()
+
     def endTurn(self):
         """Switch turn to other player and check for end of game conditions"""
-        self.turn = self.otherPlayer(self.turn)
-        self.turnNr += 1
 
-        if self.brains[self.turn] and not self.won:  # computer player?
-            (oldlocation, move) = self.brains[self.turn].findMove()
-
-            # check if the opponent can move
-            if move == None:
-                self.victory(self.otherPlayer(self.turn), True)
-                return
-
-            unit = self.getUnit(oldlocation[0], oldlocation[1])
-            unit.hasMoved = True
-
-            # Do move animation
-            stepSize = self.tilePix / MOVE_ANIM_STEPS
-            dx = move[0] - oldlocation[0]
-            dy = move[1] - oldlocation[1]
-
-            if self.animationsOn.get():
-                for _step in range(MOVE_ANIM_STEPS):
-                    self.root.after(MOVE_ANIM_FRAMERATE,
-                        self.map.move("u" + str(id(unit)), stepSize * dx, stepSize * dy))
-                    self.root.update_idletasks()
-
-            self.drawMoveArrow(oldlocation, move)
-            enemy = self.getUnit(move[0], move[1])
-            if enemy:
-                self.attack(unit, enemy)
-            else:
-                unit.setPosition(move[0], move[1])
-
-            # check if player can move
-            tempBrain = randomBrain.Brain(self, self.redArmy, self.boardWidth)
-            playerMove = tempBrain.findMove()
-            if playerMove[0] == None:
-                self.victory(self.turn, True)
-                return
-
-            if self.difficulty == "Easy":
-                for unit in self.redArmy.army:
-                    if unit.isKnown and random() <= FORGETCHANCEEASY:
-                        unit.isKnown = False
-
-            self.setStatusBar("%s moves unit at (%s,%s) to (%s,%s)" % (self.turn,
-                                                                       oldlocation[0], oldlocation[1],
-                                                                       move[0], move[1]))
-            self.drawMap()
-            if not enemy:
-                self.drawMoveArrow(oldlocation, move)
-            self.drawSidePanels()
-
-        self.turn = self.otherPlayer(self.turn)
+        # self.turn = self.otherPlayer(self.turn)
 
     def legalMove(self, unit, x, y):
         """Check whether a move:
@@ -1063,48 +1075,48 @@ class Application:
             attacker.die()
             text += "The %s was defeated." % attacker.name
 
-        if not self.won:
-            text = fill(dedent(text), 60)
-
-            self.battleResultDialog = Toplevel(width=300)
-            self.battleResultDialog.title("Battle result")
-            self.battleResultDialog.grab_set()
-            self.battleResultDialog.bind("<Return>", self.closeBattleResultWindow)
-            self.battleResultDialog.focus()
-            setIcon(self.battleResultDialog, "flag")
-
-            atkImg = ImageTk.PhotoImage(self.unitIcons.getImage(attacker.name, 120))
-            atkLbl = Label(self.battleResultDialog, image=atkImg)
-            atkLbl.image = atkImg
-            atkLbl.grid(row=0, column=0, sticky=NW)
-
-            defImg = ImageTk.PhotoImage(self.unitIcons.getImage(defender.name, 120))
-            defLbl = Label(self.battleResultDialog, image=defImg)
-            defLbl.image = defImg
-
-            message = Label(self.battleResultDialog, text=text)
-            message.grid(row=0, column=1, sticky=NE, ipadx=15, ipady=50)
-
-            defLbl.grid(row=0, column=2, sticky=NE)
-
-            ok = Button(self.battleResultDialog, text="OK", command=self.closeBattleResultWindow)
-            ok.grid(row=1, column=1, ipadx=15, ipady=5, pady=5)
-
-            # sound effects
-            if defender.name == "Bomb":
-                if attacker.canDefuseBomb:
-                    self.playSound(SOUND_DEFUSE)
-                else:
-                    self.playSound(SOUND_BOMB)
-            elif defender.name == "Marshal" and attacker.canKillMarshal:
-                self.playSound(SOUND_ARGH)
-            elif defender.name == "Marshal" and attacker.name == "Marshal":
-                self.playSound(SOUND_OHNO)
-            elif attacker.name == "Marshal":
-                self.playSound(SOUND_LAUGH)
-            else:
-                self.playSound(SOUND_COMBAT)
-            self.root.wait_window(self.battleResultDialog)
+        # if not self.won:
+            # text = fill(dedent(text), 60)
+            #
+            # self.battleResultDialog = Toplevel(width=300)
+            # self.battleResultDialog.title("Battle result")
+            # self.battleResultDialog.grab_set()
+            # self.battleResultDialog.bind("<Return>", self.closeBattleResultWindow)
+            # self.battleResultDialog.focus()
+            # setIcon(self.battleResultDialog, "flag")
+            #
+            # atkImg = ImageTk.PhotoImage(self.unitIcons.getImage(attacker.name, 120))
+            # atkLbl = Label(self.battleResultDialog, image=atkImg)
+            # atkLbl.image = atkImg
+            # atkLbl.grid(row=0, column=0, sticky=NW)
+            #
+            # defImg = ImageTk.PhotoImage(self.unitIcons.getImage(defender.name, 120))
+            # defLbl = Label(self.battleResultDialog, image=defImg)
+            # defLbl.image = defImg
+            #
+            # message = Label(self.battleResultDialog, text=text)
+            # message.grid(row=0, column=1, sticky=NE, ipadx=15, ipady=50)
+            #
+            # defLbl.grid(row=0, column=2, sticky=NE)
+            #
+            # ok = Button(self.battleResultDialog, text="OK", command=self.closeBattleResultWindow)
+            # ok.grid(row=1, column=1, ipadx=15, ipady=5, pady=5)
+            #
+            # # sound effects
+            # if defender.name == "Bomb":
+            #     if attacker.canDefuseBomb:
+            #         self.playSound(SOUND_DEFUSE)
+            #     else:
+            #         self.playSound(SOUND_BOMB)
+            # elif defender.name == "Marshal" and attacker.canKillMarshal:
+            #     self.playSound(SOUND_ARGH)
+            # elif defender.name == "Marshal" and attacker.name == "Marshal":
+            #     self.playSound(SOUND_OHNO)
+            # elif attacker.name == "Marshal":
+            #     self.playSound(SOUND_LAUGH)
+            # else:
+            #     self.playSound(SOUND_COMBAT)
+            # self.root.wait_window(self.battleResultDialog)
 
         self.clearMoveArrows()
         self.drawSidePanels()
@@ -1234,7 +1246,6 @@ class Application:
         sound.play()
         time.sleep(sound.get_length())
         print("Playing sound {}".format(os.path.join(SOUND_DIR, name)))
-
 
     def quickplace(self, event=None):
         """Let the computer place human player's pieces randomly"""
