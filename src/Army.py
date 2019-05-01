@@ -136,7 +136,8 @@ class Unit:
             return True
         if self.position[0] < 0 and self.position[1] < 0:
             return True
-        else: return False
+        else:
+            return False
 
     def die(self):
         self.alive = False

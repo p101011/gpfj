@@ -873,7 +873,7 @@ class Application:
             unit.setPosition(move[0], move[1])
 
         # check if player can move
-        tempBrain = randomBrain.Brain(self, self.redArmy, self.boardWidth)
+        tempBrain = randomBrain.Brain(self, self.brains[self.turn].army, self.boardWidth)
         playerMove = tempBrain.findMove()
         if playerMove[0] == None:
             self.victory(self.turn, True)
