@@ -17,6 +17,7 @@ import platform as pf
 import pkgutil
 import time
 import pygame
+import sys
 
 # Tkinter and PIL for GUI and graphics
 from Tkinter import *  # @UnusedWildImport
@@ -54,11 +55,14 @@ def setIcon(window, icon):
 
 class Application:
     """Main game and UI class"""
-    def __init__(self, root, brain="SmartBrain", difficulty="Normal", size="Normal", diagonal=False):
+    def __init__(self, root, brain="SmartBrain", brain2="SmartBrain", difficulty="Normal", size="Normal",draw=False, diagonal=False):
     
         self.root = root
+        self.draw = draw
+
         self.blueBrain = eval(brain)
-        self.redBrain = eval(brain)
+        self.redBrain = eval(brain2)
+
         self.blueBrainName = brain
         self.difficulty = difficulty
         self.diagonal = (diagonal == "Yes")
@@ -70,7 +74,6 @@ class Application:
 
         self.unitIcons = Icons(self.tilePix)
 
-        
         # Create menu bar
         menuBar = Menu(root)
 
@@ -165,20 +168,15 @@ class Application:
         self.root.bind("<F1>", self.helpMe)
         self.root.protocol("WM_DELETE_WINDOW", self.exit)
 
-        self.firstMove = "Red"
+        self.firstMove = "Blue"
         self.loadStats()
         self.newGame()
 
     def confirmNewGame(self, event=None):
         """Ask user to confirm that they want to start a new game and lose their current one"""
-        if self.started and (not self.won) and tkMessageBox.askyesno("Confirm new game",
-            "If you start a new game, your current game will be lost. Are you sure?"):
-                self.newGame()
-                self.runGame()
+        self.newGame()
+        self.runGame()
 
-        if self.won or not self.started:
-            self.newGame()
-            self.runGame()
 
     def newGame(self, event=None):
         """Reset a bunch of variables in order to start a new game"""
@@ -210,15 +208,12 @@ class Application:
         else:
             self.unitsPlaced = 0
         #
-        # self.drawSidePanels()
-        # self.drawMap()
-        # self.setStatusBar("Place your army, or press 'p' for random placement")
-
-        # self.runGame()
+        self.drawSidePanels()
+        self.drawMap()
 
     def runGame(self, event=None):
         while self.brains[self.turn] and not self.won and True:  # computer player?
-            print "Starting Game"
+            # print "Starting Game"
             self.computerTurn()
             self.turn = self.otherPlayer(self.turn)
             self.turnNr += 1
@@ -562,7 +557,7 @@ class Application:
     def drawMap(self):
         """Draw the tiles and units on the map."""
         # TODO: prettier, irregular coast
-        print "Drawing map"
+        # print "Drawing map"
         self.map.delete(ALL)
         self.map.create_image(0, 0, image=self.grassImage, anchor=NW)
 
@@ -587,7 +582,7 @@ class Application:
             if unit.alive:
                 (x, y) = unit.getPosition()
                 self.drawUnit(self.map, unit, x, y)
-        print "Done drawing map"
+        # print "Done drawing map"
 
     def drawTile(self, x, y, tileColor):
         """Fill a tile with its background color - Currently unused"""
@@ -849,21 +844,22 @@ class Application:
         # check if the opponent can move
         if move == None:
             self.victory(self.otherPlayer(self.turn), True)
-            return
+            return 
 
         unit = self.getUnit(oldlocation[0], oldlocation[1])
         unit.hasMoved = True
 
         # Do move animation
-        stepSize = self.tilePix / MOVE_ANIM_STEPS
-        dx = move[0] - oldlocation[0]
-        dy = move[1] - oldlocation[1]
+        if self.draw:
+            stepSize = self.tilePix / MOVE_ANIM_STEPS
+            dx = move[0] - oldlocation[0]
+            dy = move[1] - oldlocation[1]
 
-        if self.animationsOn.get():
-            for _step in range(MOVE_ANIM_STEPS):
-                self.root.after(MOVE_ANIM_FRAMERATE,
-                                self.map.move("u" + str(id(unit)), stepSize * dx, stepSize * dy))
-                self.root.update_idletasks()
+            if self.animationsOn.get():
+                for _step in range(MOVE_ANIM_STEPS):
+                    self.root.after(MOVE_ANIM_FRAMERATE,
+                                    self.map.move("u" + str(id(unit)), stepSize * dx, stepSize * dy))
+                    self.root.update_idletasks()
 
         self.drawMoveArrow(oldlocation, move)
         enemy = self.getUnit(move[0], move[1])
@@ -887,10 +883,11 @@ class Application:
         self.setStatusBar("%s moves unit at (%s,%s) to (%s,%s)" % (self.turn,
                                                                    oldlocation[0], oldlocation[1],
                                                                    move[0], move[1]))
-        self.drawMap()
-        if not enemy:
-            self.drawMoveArrow(oldlocation, move)
-        self.drawSidePanels()
+        if self.draw:
+            self.drawMap()
+            if not enemy:
+                self.drawMoveArrow(oldlocation, move)
+            self.drawSidePanels()
 
     def endTurn(self):
         """Switch turn to other player and check for end of game conditions"""
@@ -1203,42 +1200,45 @@ class Application:
         """Show the victory/defeat screen"""
         self.won = True
         self.drawMap()
-        top = Toplevel(width=300)
-        setIcon(top, "flag")
-        flagimg1 = Image.open("%s/%s.%s" % (ICON_DIR, "flag", ICON_TYPE))
-        flagimg2 = ImageTk.PhotoImage(flagimg1)
-        lbl = Label(top, image=flagimg2)
-        lbl.image = flagimg2
-        lbl.grid(row=0, column=1, sticky=NW)
+        # top = Toplevel(width=300)
+        # setIcon(top, "flag")
+        # flagimg1 = Image.open("%s/%s.%s" % (ICON_DIR, "flag", ICON_TYPE))
+        # flagimg2 = ImageTk.PhotoImage(flagimg1)
+        # lbl = Label(top, image=flagimg2)
+        # lbl.image = flagimg2
+        # lbl.grid(row=0, column=1, sticky=NW)
 
         if color == "Red":
-            top.title("Victory!")
-            if noMoves:
-                messageTxt = "The enemy army has been immobilized. Congratulations, you win!"
-            else:
-                messageTxt = "Congratulations! You've captured the enemy flag!"
+            # top.title("Victory!")
+            self.winner = 1;
+            # if noMoves:
+            #     messageTxt = "The enemy army has been immobilized. Congratulations, you win!"
+            # else:
+            #     messageTxt = "Congratulations! You've captured the enemy flag!"
 
         else:
-            top.title("Defeat!")
-            if noMoves:
-                messageTxt = "There are no valid moves left. You lose."
-            else:
-                messageTxt = "Unfortunately, the enemy has captured your flag. You lose."
+            # top.title("Defeat!")
+            self.winner = 0;
+            # if noMoves:
+            #     messageTxt = "There are no valid moves left. You lose."
+            # else:
+            #     messageTxt = "Unfortunately, the enemy has captured your flag. You lose."
 
-        casualties = len(self.redArmy.army) - self.redArmy.nrAlive()
-        self.stats.addGame(color == "Red", casualties, self.turnNr)
-        message = Label(top, text=messageTxt)
-        message.grid(row=0, column=0, sticky=NE, ipadx=15, ipady=50)
+        self.casualties = len(self.redArmy.army) - self.redArmy.nrAlive()
+        # self.stats.addGame(color == "Red", self.casualties, self.turnNr)
+        # print "%s has won the game in %i turns!" % (color, self.turnNr)
+        # message = Label(top, text=messageTxt)
+        # message.grid(row=0, column=0, sticky=NE, ipadx=15, ipady=50)
 
-        ok = Button(top, text="OK", command=top.destroy)
-        ok.grid(row=1, column=0, columnspan=2, ipadx=15, ipady=5, pady=5)
+        # ok = Button(top, text="OK", command=top.destroy)
+        # ok.grid(row=1, column=0, columnspan=2, ipadx=15, ipady=5, pady=5)
 
-        message.configure(width=40, justify=CENTER, wraplength=150)
-        self.setStatusBar("%s has won the game in %i turns!" % (color, self.turnNr))
-        if color == "Red":
-            self.playSound(SOUND_WIN)
-        else:
-            self.playSound(SOUND_LOSE)
+        # message.configure(width=40, justify=CENTER, wraplength=150)
+        # self.setStatusBar("%s has won the game in %i turns!" % (color, self.turnNr))
+        # if color == "Red":
+        #     self.playSound(SOUND_WIN)
+        # else:
+        #     self.playSound(SOUND_LOSE)
 
     def playSound(self, name):
         """Play a sound, if on Windows and if sound is enabled"""
@@ -1430,7 +1430,7 @@ class Launcher():
         track = choice(tracks)
         pygame.mixer.music.load(os.path.join(MUSIC_DIR, track))
         pygame.mixer.music.play()
-        print("Playing music {}".format(os.path.join(MUSIC_DIR, track)))
+        # print("Playing music {}".format(os.path.join(MUSIC_DIR, track)))
 
     def addMenu(self, labeltext, var, options, default):
         """Add an OptionMenu (in Python 2.6's Tkinter) or a ttk Combobox (in Python 2.7)
@@ -1458,8 +1458,54 @@ if __name__ == "__main__":
     pygame.mixer.init(48000, -16, 1, 102400)
     root = Tk()
     root.withdraw()
-    Launcher(root)
-    root.title("%s %s" % (GAME_NAME, VERSION))
-    setIcon(root, "flag")
-    root.mainloop() 
-    pygame.mixer.quit()
+    # Launcher(root)
+
+    try:
+        brain1 = sys.argv[1]
+    except IndexError:
+        brain1 = "SmartBrain"
+
+    try:
+        brain2 = sys.argv[2]
+    except IndexError:
+        brain2 = "SmartBrain"
+
+    try:
+        runs = sys.argv[3]
+    except IndexError:
+        runs = 1
+
+    try:
+        draw = (True if sys.argv[4] == "Yes" else False)
+    except IndexError:
+        draw = False
+
+    root.update()
+    root.deiconify()
+
+
+    gameWins = 0
+    gameMoves = []
+    gameScore = []
+
+    for i in range(0,int(runs)):
+        app = Application(root, brain1, brain2, "Normal", "Small", draw, False)
+        app.runGame()
+        gameMoves.append(app.turnNr)
+        gameWins += app.winner
+        gameScore.append(app.casualties)
+        print ("Game %s complete: Team %s is the winner" % (i, "Red" if app.winner == 1 else "Blue"))
+        # root.update()
+
+
+
+
+    print ("Red Team Won %s times out of %s Games" % (gameWins, int(runs)))
+    print ("Average Turns %s" % (sum(gameMoves)/int(runs)))
+    print ("Average Score %s" % (sum(gameScore)/int(runs)))
+
+    # root.title("%s %s" % (GAME_NAME, VERSION))
+    # setIcon(root, "flag")
+    # root.mainloop() 
+    # pygame.mixer.quit()
+    root.quit()
